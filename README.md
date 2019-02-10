@@ -16,6 +16,8 @@ I made a C++ class named `CustomVisionClient` that wraps the functionality to ac
 
 As you can guess that this project is made with `Espressif IoT Development Framework` ([ESP-IDF](https://github.com/espressif/esp-idf)). So, I assume you're already familiar with it and have the development environment set up. Please check [ESP-IDF docs](https://docs.espressif.com/projects/esp-idf/en/latest/) for getting started instructions. If you use [Arduino for ESP32](https://github.com/espressif/arduino-esp32/) framework, I think it's still very easy to convert.
 
+This project can be used for **ESP-EYE** and **ESP-WROVER-KIT**. You should be able to use it for another board with camera, namely the one from TTGO. Just adapt the code yourself, PRs are always welcome.
+
 ## Architecture
 This image shows the architecture of the project:
 ![Architecture](https://github.com/andriyadi/esp32-custom-vision/raw/master/imgs/demo_architecture.jpg)
@@ -80,11 +82,17 @@ Take a look that there's: `IP address: 192.168.0.20`. It's the IP address of the
 
 Now, open your favourite web browser and type `http://[BOARD_IP_ADDRESS]` with `[BOARD_IP_ADDRESS]` is the IP addrees you got above. You should see the `hello` text.
 
-Now, type URL: `http://[BOARD_IP_ADDRESS]/capture`, you should see the captured image by the board's camera.
+Now, type URL: `http://[BOARD_IP_ADDRESS]/capture`, you should see the captured image by the board's camera on the browser.
 
-Then, type URL: `http://[BOARD_IP_ADDRESS]/recog`, the board will capture an image, send the image to Azure Custom Vision for inferencing, then show the detected face on the browser, as this image:
+Then, type URL: `http://[BOARD_IP_ADDRESS]/recog`, the board will capture an image, send the image to Azure Custom Vision for inferencing, then show the detected face on the browser as this image:
 ![Recog Result](https://github.com/andriyadi/esp32-custom-vision/raw/master/imgs/recog_result.png)
 
 For showing live video streaming on the browser and do live recognition, you can use `http://[BOARD_IP_ADDRESS]/stream` URL. The demo video is as above-mentioned, you can watch it [here](http://www.youtube.com/watch?v=-L6gU6Gga5o).
 
 For any questions, please raise an issue. That's it. Enjoy!
+
+##Credits
+
+* [esp-who](https://github.com/espressif/esp-who)
+* DXWiFi class' code is adapted from [here](https://github.com/espressif/esp-iot-solution/blob/master/components/wifi/wifi_conn)
+
