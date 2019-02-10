@@ -1,0 +1,15 @@
+menu "App Configuration"
+
+choice CAMERA_BOARD
+	bool "Select Camera Dev Board"
+    default CONFIG_CAMERA_BOARD_EYE
+    
+config CAMERA_BOARD_WROVER
+	bool "ESP-WROVER-KIT"
+
+config CAMERA_BOARD_EYE
+	bool "ESP-EYE"
+	
+endchoice
+
+endmenu
