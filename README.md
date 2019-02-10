@@ -16,6 +16,10 @@ I made a C++ class named `CustomVisionClient` that wraps the functionality to ac
 
 As you can guess that this project is made with `Espressif IoT Development Framework` ([ESP-IDF](https://github.com/espressif/esp-idf)). So, I assume you're already familiar with it and have the development environment set up. Please check [ESP-IDF docs](https://docs.espressif.com/projects/esp-idf/en/latest/) for getting started instructions. If you use [Arduino for ESP32](https://github.com/espressif/arduino-esp32/) framework, I think it's still very easy to convert.
 
+## Architecture
+This image shows the architecture of the project:
+![Architecture](https://github.com/andriyadi/esp32-custom-vision/raw/master/imgs/demo_architecture.jpg)
+
 ## Getting Started
 
 * Clone this repo, recursively: `git clone --recursive https://github.com/andriyadi/esp32-custom-vision.git`
