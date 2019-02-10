@@ -364,10 +364,10 @@ void app_main(void)
 	}
 
 	CustomVisionClient::CustomVisionClientConfig_t cvcConfig = {
-			"southcentralus.api.cognitive.microsoft.com", //Host
+			AZURE_CV_HOST, //Host
 			AZURE_CV_PREDICTION_KEY, //Prediction key
-			"13ebb90a-5a1f-453b-8692-3586788451df", //Iteration ID
-			"28bdc115-5ec4-48e5-aa96-0f627d67137d" //Project ID
+			AZURE_CV_ITERATION_ID, //Iteration ID
+			AZURE_CV_PROJECT_ID //Project ID
 	};
 
 	cvc = new CustomVisionClient(cvcConfig);
