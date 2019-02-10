@@ -19,7 +19,7 @@ This project is made with `Espressif IoT Development Framework` ([ESP-IDF](https
 * Clone this repo, recursively: `git clone --recursive https://github.com/andriyadi/esp32-custom-vision.git`
 * If you clone project without `--recursive` flag, please go to the `esp32-custom-vision` directory and run command this command to update submodules which it depends on: `git submodule update --init --recursive` 
 * Create `secrets.h` file inside `main` folder. Explained below.
-* On Terminal/Console, in root folder, do `make menuconfig`. Go to `App Configuration` --> `Select Camera Dev Board (ESP-EYE)`. Here you can select the development board, either: ESP-EYE or ESP-WROVER-KIT. Exit and save the menuconfig.
+* On Terminal/Console, in root folder, do `make menuconfig`. Go to `App Configuration` --> `Select Camera Dev Board (ESP-EYE)`. Here you can select the development board, either: ESP-EYE or ESP-WROVER-KIT. **Yes, you can also use ESP-WROVER-KIT board**. Exit and save the menuconfig.
 * Still in root folder, try to `make flash monitor`. Fingers crossed :)
 
 ## `secrets.h` file
@@ -32,7 +32,11 @@ Under `main` folder, create a file named `secrets.h` with the content:
 #define SSID_NAME "[YOUR_OWN_WIFI_SSID_NAME]"
 #define SSID_PASS "[YOUR_OWN_WIFI_SSID_PASSWORD]"
 
+// Azure Custom Vision-related settings
 #define AZURE_CV_PREDICTION_KEY "[YOUR_OWN_AZURE_CUSTOM_VISION_PREDICTION_KEY]"
+#define AZURE_CV_HOST "southcentralus.api.cognitive.microsoft.com"
+#define AZURE_CV_PROJECT_ID "[YOUR_OWN_AZURE_CUSTOM_VISION_PROJECT_ID]"
+#define AZURE_CV_ITERATION_ID "YOUR_OWN_AZURE_CUSTOM_VISION_ITERATION_ID]"
 
 #endif /* MAIN_SECRETS_H_ */
 ```
@@ -43,6 +47,18 @@ Replace all value with [...] inside quote.
 Obviously, you need to have access to Azure Custom Vision to make this project works. You can try for free at [customvision.ai](https://www.customvision.ai/). If you already have Microsoft Azure account, you're good to go.
 
 In the live coding videos mentioned above, I explained and showed to get started with Azure Custom Vision. Watch [this video](https://www.youtube.com/watch?v=-MavqOWtUvI&list=PLh27GVXl10PcpnDkodCiUaSc8Mgma7FxW&index=2)
+
+### Determine Azure Custom Vision Settings
+`AZURE_CV_PREDICTION_KEY` can be determined by clicking "Prediction URL" in "Performance" tab that will display this dialog:
+![Prediction URL Dialog](https://github.com/andriyadi/esp32-custom-vision/raw/master/imgs/customvision_key.png)
+You can see there's `Prediction-Key`
+
+Still in above dialog, you'll find URL like: `https://southcentralus.api.cognitive.microsoft.com/customvision/v2.0/Prediction/28bdc115-xxxx-48e5-xxxx-0f627d67137d/image?iterationId=13ebb90a-xxxx-453b-xxxx-3586788451df`. From the URL, you can determine:
+* `AZURE_CV_HOST` = `southcentralus.api.cognitive.microsoft.com` 
+* `AZURE_CV_PROJECT_ID` = `28bdc115-xxxx-48e5-xxxx-0f627d67137d`
+* `AZURE_CV_ITERATION_ID` = `13ebb90a-xxxx-453b-xxxx-3586788451df`
+
+Please note that `AZURE_CV_ITERATION_ID` is quite important as you can switch between training iterations, just by setting the iteration id. 
 
 ## Usage
 Upon successful build and flashing the firmware to the board, on Terminal/Console you'll see the firmware runs and eventually show these lines:
@@ -60,6 +76,9 @@ Now, open your browser and type `http://[BOARD_IP_ADDRESS]` with `[BOARD_IP_ADDR
 
 Now, type URL: `http://[BOARD_IP_ADDRESS]/capture`, you should see the captured image by the board's camera.
 
-Then, type URL: `http://[BOARD_IP_ADDRESS]/recog`, the board will capture an image, send the image to Azure Custom Vision for inferencing, then show the detected face on the browser.
+Then, type URL: `http://[BOARD_IP_ADDRESS]/recog`, the board will capture an image, send the image to Azure Custom Vision for inferencing, then show the detected face on the browser, as this image:
+![Recog Result](https://github.com/andriyadi/esp32-custom-vision/raw/master/imgs/recog_result.png)
 
 For showing live video streaming on the browser and do live recognition, you can use `http://[BOARD_IP_ADDRESS]/stream` URL.
+
+For any questions, please raise an issue. That's it. Enjoy!
