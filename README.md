@@ -91,8 +91,8 @@ For showing live video streaming on the browser and do live recognition, you can
 
 For any questions, please raise an issue. That's it. Enjoy!
 
-##Credits
+## Credits
 
-* [esp-who](https://github.com/espressif/esp-who)
+* [esp-who](https://github.com/espressif/esp-who). Especially, I adapt the code for manipulating frame buffer (from camera) to display box and label. Also, for HTTP server.
 * DXWiFi class' code is adapted from [here](https://github.com/espressif/esp-iot-solution/blob/master/components/wifi/wifi_conn)
 
