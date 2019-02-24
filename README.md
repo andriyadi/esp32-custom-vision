@@ -16,7 +16,13 @@ I made a C++ class named `CustomVisionClient` that wraps the functionality to ac
 
 As you can guess that this project is made with `Espressif IoT Development Framework` ([ESP-IDF](https://github.com/espressif/esp-idf)). So, I assume you're already familiar with it and have the development environment set up. Please check [ESP-IDF docs](https://docs.espressif.com/projects/esp-idf/en/latest/) for getting started instructions. If you use [Arduino for ESP32](https://github.com/espressif/arduino-esp32/) framework, I think it's still very easy to convert.
 
-This project can be used for **ESP-EYE** and **ESP-WROVER-KIT**. You should be able to use it for another board with camera, namely the one from TTGO. Just adapt the code yourself, PRs are always welcome.
+## Supported Boards
+This project has been tested using following boards:
+* [ESP-EYE](https://www.espressif.com/en/products/hardware/esp-eye/overview)
+* [ESP-WROVER-KIT](https://www.espressif.com/en/products/hardware/esp-wrover-kit/overview)
+* [TTGO T-Camera](https://www.aliexpress.com/store/product/TTGO-T-Camera-ESP32-WROVER-PSRAM-Camera-Module-ESP32-WROVER-B-OV2640-Camera-Module-0-96/2090076_32968683765.html)
+* You should be able to use it for another board with camera. Just adapt the code yourself, PRs are always welcome.
+
 
 ## Architecture
 This image shows the architecture of the project:
@@ -27,7 +33,7 @@ This image shows the architecture of the project:
 * Clone this repo, recursively: `git clone --recursive https://github.com/andriyadi/esp32-custom-vision.git`
 * If you clone project without `--recursive` flag, please go to the `esp32-custom-vision` directory and run command this command to update submodules which it depends on: `git submodule update --init --recursive` 
 * Create `secrets.h` file inside `main` folder. Explained below.
-* On Terminal/Console, in root folder, do `make menuconfig`. Go to `App Configuration` --> `Select Camera Dev Board (ESP-EYE)`. Here you can select the development board, either: ESP-EYE or ESP-WROVER-KIT. **Yes, you can also use ESP-WROVER-KIT board**. Exit and save the menuconfig.
+* On Terminal/Console, in root folder, do `make menuconfig`. Go to `App Configuration` --> `Select Camera Dev Board (ESP-EYE)`. Here you can select the development board, either: ESP-EYE, ESP-WROVER-KIT, or TTGO T-Camera. Exit and save the menuconfig.
 * Still in root folder, try to `make flash monitor`. Fingers crossed :)
 
 ## `secrets.h` file

@@ -10,6 +10,9 @@ config CAMERA_BOARD_WROVER
 config CAMERA_BOARD_EYE
 	bool "ESP-EYE"
 	
+config CAMERA_BOARD_TTGO_TCAM
+	bool "TTGO T-Camera"
+	
 endchoice
 
 endmenu
