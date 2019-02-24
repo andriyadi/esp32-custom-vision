@@ -5,6 +5,10 @@
 #include "esp_http_server.h"
 #include "CustomVisionClient.h"
 
+#if CONFIG_CAMERA_BOARD_TTGO_TCAM
+#include "ssd1306.h"
+#endif
+
 #define TAG "APP"
 
 #define STREAM_PREDICTION_INTERVAL 10000000 //10 seconds
@@ -90,21 +94,32 @@ static esp_err_t recog_handler(httpd_req_t *req){
 			if (_cvc != NULL) {
 
 				// Alternative 1
-				res = _cvc->detect(fb, NULL, NULL, true, &out_buff, &out_len);
-				if (res != ESP_OK) {
-	//				request->send(500, "text/plain", "Prediction is failed");
-	//				return;
-				}
+//				res = _cvc->detect(fb, NULL, NULL, true, &out_buff, &out_len);
+//				if (res != ESP_OK) {
+//	//				request->send(500, "text/plain", "Prediction is failed");
+//	//				return;
+//				}
 
 				// Alternative 2
-//				box_array_t *box_list = nullptr;
-//				char label[64];
-//				res = _cvc->predict(fb, &box_list, label);
-//				if (res == ESP_OK) {
-//					_cvc->putInfoOnFrame(fb, box_list, label, &out_buff, &out_len);
-//					free(box_list->box);
-//					free(box_list);
-//				}
+				box_array_t *box_list = nullptr;
+				char label[64];
+				res = _cvc->detect(fb, &box_list, label);
+				if (res == ESP_OK) {
+					// Draw box and label
+					_cvc->putInfoOnFrame(fb, box_list, label, &out_buff, &out_len);
+
+#if CONFIG_CAMERA_BOARD_TTGO_TCAM
+					// Display label on OLED
+					ssd1306_clearScreen();
+					ssd1306_setFixedFont(ssd1306xled_font5x7);
+					ssd1306_printFixedN(5, 5, "Hello", STYLE_BOLD, FONT_SIZE_2X);
+					ssd1306_setFixedFont(ssd1306xled_font6x8);
+					ssd1306_printFixedN(5, 30, label, STYLE_BOLD, FONT_SIZE_NORMAL);
+#endif
+
+					free(box_list->box);
+					free(box_list);
+				}
 			}
 
 			res = httpd_resp_send(req, (const char *)out_buff, out_len);
@@ -352,6 +367,21 @@ void startHttpd() {
 	}
 }
 
+#if CONFIG_CAMERA_BOARD_TTGO_TCAM
+
+void initOLED() {
+//	ssd1306_setFixedFont(ssd1306xled_font6x8);
+	ssd1306_setFixedFont(ssd1306xled_font5x7);
+	ssd1306_128x64_i2c_init(); //default use I2C_NUM_1. SDA: 21, SCL: 22
+
+	ssd1306_flipHorizontal(1);
+	ssd1306_flipVertical(1);
+
+	ssd1306_clearScreen();
+	ssd1306_printFixedN((128 - 10*10)/2, 30, "Waiting...", STYLE_BOLD, FONT_SIZE_2X);
+}
+#endif
+
 void app_main(void)
 {
 	esp_err_t res = camera_init();
@@ -362,6 +392,10 @@ void app_main(void)
 	else {
 		ESP_LOGI(TAG, "Camera init SUCCESS!");
 	}
+
+#if CONFIG_CAMERA_BOARD_TTGO_TCAM
+	initOLED();
+#endif
 
 	CustomVisionClient::CustomVisionClientConfig_t cvcConfig = {
 			AZURE_CV_HOST, //Host

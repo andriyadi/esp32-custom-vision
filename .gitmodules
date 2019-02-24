@@ -1,3 +1,6 @@
 [submodule "components/esp32-camera"]
 	path = components/esp32-camera
 	url = https://github.com/espressif/esp32-camera.git
+[submodule "components/ssd1306"]
+	path = components/ssd1306
+	url = https://github.com/lexus2k/ssd1306
