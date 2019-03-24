@@ -12,6 +12,7 @@
 #define TAG "APP"
 
 #define STREAM_PREDICTION_INTERVAL 10000000 //10 seconds
+#define MIN_PROB_BEST_PREDICTION 0.6f
 
 // For streaming-related
 #define PART_BOUNDARY "123456789000000000000987654321"
@@ -101,25 +102,46 @@ static esp_err_t recog_handler(httpd_req_t *req){
 //				}
 
 				// Alternative 2
-				box_array_t *box_list = nullptr;
-				char label[64];
-				res = _cvc->detect(fb, &box_list, label);
+//				bounding_box_t *box_list = nullptr;
+//				char label[64];
+//				res = _cvc->detect(fb, &box_list, label);
+//				if (res == ESP_OK) {
+//					// Draw box and label
+//					_cvc->putInfoOnFrame(fb, box_list, label, &out_buff, &out_len);
+//
+//#if CONFIG_CAMERA_BOARD_TTGO_TCAM
+//					// Display label on OLED
+//					ssd1306_clearScreen();
+//					ssd1306_setFixedFont(ssd1306xled_font5x7);
+//					ssd1306_printFixedN(5, 5, "Hello", STYLE_BOLD, FONT_SIZE_2X);
+//					ssd1306_setFixedFont(ssd1306xled_font6x8);
+//					ssd1306_printFixedN(5, 30, label, STYLE_BOLD, FONT_SIZE_NORMAL);
+//#endif
+//
+//					free(box_list->box);
+//					free(box_list);
+//				}
+
+				CustomVisionClient::CustomVisionDetectionResult_t *predResult = new CustomVisionClient::CustomVisionDetectionResult_t();
+				res = _cvc->detect(fb, predResult, MIN_PROB_BEST_PREDICTION);
 				if (res == ESP_OK) {
 					// Draw box and label
-					_cvc->putInfoOnFrame(fb, box_list, label, &out_buff, &out_len);
+					_cvc->putInfoOnFrame(fb, predResult->predictions, MIN_PROB_BEST_PREDICTION, &out_buff, &out_len);
 
 #if CONFIG_CAMERA_BOARD_TTGO_TCAM
+
+					CustomVisionClient::CustomVisionDetectionModel_t bestPred = predResult->predictions.at(predResult->bestPredictionIndex);
 					// Display label on OLED
 					ssd1306_clearScreen();
 					ssd1306_setFixedFont(ssd1306xled_font5x7);
 					ssd1306_printFixedN(5, 5, "Hello", STYLE_BOLD, FONT_SIZE_2X);
 					ssd1306_setFixedFont(ssd1306xled_font6x8);
-					ssd1306_printFixedN(5, 30, label, STYLE_BOLD, FONT_SIZE_NORMAL);
+					ssd1306_printFixedN(5, 30, bestPred.tagName, STYLE_BOLD, FONT_SIZE_NORMAL);
 #endif
-
-					free(box_list->box);
-					free(box_list);
 				}
+
+				delete predResult;
+				predResult = NULL;
 			}
 
 			res = httpd_resp_send(req, (const char *)out_buff, out_len);
@@ -146,6 +168,7 @@ static esp_err_t stream_handler(httpd_req_t *req){
 	int64_t _nextPredictTime = esp_timer_get_time() + STREAM_PREDICTION_INTERVAL/2;
 	int64_t _showInfoUntil = 0;
 
+//	CustomVisionClient::CustomVisionDetectionResult_t *_predRes = new CustomVisionClient::CustomVisionDetectionResult_t();
 	CustomVisionClient::CustomVisionDetectionResult_t _predRes = {};
 
 	camera_fb_t *_asyncDetectFb = NULL;
@@ -174,14 +197,13 @@ static esp_err_t stream_handler(httpd_req_t *req){
 				if (_cvc != NULL) {
 
 					// Clear prev box if any
-					if (_predRes.box_list != NULL) {
-						free(_predRes.box_list->box);
-						free(_predRes.box_list);
-						_predRes.box_list = NULL;
-
-						free(_predRes.label);
-						_predRes.label = NULL;
-					}
+//					if (_predRes != NULL) {
+//						delete _predRes;
+//						_predRes = NULL;
+//
+//						_predRes = new CustomVisionClient::CustomVisionDetectionResult_t();
+//					}
+					_predRes.clear();
 
 					// Copy camera framebuffer to be sent for detection
 					_asyncDetectFb =  (camera_fb_t*)malloc(sizeof(camera_fb_t));
@@ -193,7 +215,7 @@ static esp_err_t stream_handler(httpd_req_t *req){
 					memcpy(_asyncDetectFb->buf, fb->buf, fb->len);
 
 					// Do detection asynchronously, so the video stream not interrupted
-					res = _cvc->detectAsync(_asyncDetectFb);
+					res = _cvc->detectAsync(_asyncDetectFb, MIN_PROB_BEST_PREDICTION);
 
 					app_state = APP_START_RECOGNITION;
 					_showInfoUntil = esp_timer_get_time() + 3000000;
@@ -208,8 +230,10 @@ static esp_err_t stream_handler(httpd_req_t *req){
 			// Check queue from aysnc prediction
 			if (app_state == APP_START_RECOGNITION && _cvc->detectionQueue) {
 
+//				if (xQueueReceive(_cvc->detectionQueue, _predRes, 5) != pdFALSE) {
+//					ESP_LOGI(TAG, "Got async-ed detection result. label: %s", _predRes->bestPredictionLabel);
 				if (xQueueReceive(_cvc->detectionQueue, &_predRes, 5) != pdFALSE) {
-					ESP_LOGI(TAG, "Got async-ed detection result. label: %s", _predRes.label);
+					ESP_LOGI(TAG, "Got async-ed detection result. label: %s", _predRes.bestPredictionLabel);
 
 					app_state = APP_DONE_RECOGNITION;
 					_showInfoUntil = esp_timer_get_time() + STREAM_PREDICTION_INTERVAL/2;
@@ -236,9 +260,12 @@ static esp_err_t stream_handler(httpd_req_t *req){
 			}
 
 			if (app_state == APP_DONE_RECOGNITION && (esp_timer_get_time() < _showInfoUntil)) {
-				if (_predRes.box_list != NULL) {
-					// If box is there, meaning there's prediction, draw it
-					_cvc->putInfoOnFrame(fb, _predRes.box_list, _predRes.label, &_jpg_buf, &_jpg_buf_len);
+//				if (_predRes != NULL && !_predRes->predictions.empty()) {
+//					// If prediction is there, draw it
+//					_cvc->putInfoOnFrame(fb, _predRes->predictions, MIN_PROB_BEST_PREDICTION, &_jpg_buf, &_jpg_buf_len);
+				if (_predRes.bestPredictionFound() && !_predRes.predictions.empty()) {
+					// If prediction is there, draw it
+					_cvc->putInfoOnFrame(fb, _predRes.predictions, MIN_PROB_BEST_PREDICTION*0.75f, &_jpg_buf, &_jpg_buf_len);
 
 				} else {
 					int32_t x = (fb->width - (strlen(DETECT_NO_RESULT_MESSAGE) * 14)) / 2;
@@ -290,14 +317,10 @@ static esp_err_t stream_handler(httpd_req_t *req){
 	}
 
 	// Clear last box
-	if (_predRes.box_list != NULL) {
-		free(_predRes.box_list->box);
-		free(_predRes.box_list);
-		_predRes.box_list = NULL;
-
-		free(_predRes.label);
-		_predRes.label = NULL;
-	}
+//	if (_predRes != NULL) {
+//		delete _predRes;
+//		_predRes = NULL;
+//	}
 
 //	if (asyncPredictFb != NULL) {
 //		free(asyncPredictFb->buf);
@@ -326,6 +349,7 @@ void startHttpd() {
 	app_state = APP_WIFI_CONNECTED;
 
 	httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+//	config.stack_size = (4096*2);
 //	config.max_open_sockets = 10;
 //	config.send_wait_timeout = 30;
 //	config.recv_wait_timeout = 30;
@@ -401,7 +425,8 @@ void app_main(void)
 			AZURE_CV_HOST, //Host
 			AZURE_CV_PREDICTION_KEY, //Prediction key
 			AZURE_CV_ITERATION_ID, //Iteration ID
-			AZURE_CV_PROJECT_ID //Project ID
+			AZURE_CV_PROJECT_ID, //Project ID
+			false //Should store image for next training or not
 	};
 
 	cvc = new CustomVisionClient(cvcConfig);

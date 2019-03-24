@@ -67,7 +67,8 @@ esp_err_t CustomVisionClient::putLabelOnFrame(camera_fb_t* fbIn,
 	return err;
 }
 
-esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, box_array_t *boxlist, const char *label, uint8_t ** out_buf, size_t * out_len) {
+/*
+esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, bounding_box_t *boxlist, const char *label, uint8_t ** out_buf, size_t * out_len) {
 
 	esp_err_t err = ESP_OK;
 	uint8_t *rgb888_out_buf = NULL;
@@ -132,8 +133,108 @@ esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, box_array_t *box
 
 	return err;
 }
+*/
 
-esp_err_t process_json(const char *jsonStr, size_t imgWidth, size_t imgHeight, box_array_t **boxlistout, char *label) {
+esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, const std::vector<CustomVisionDetectionModel_t> &predictions, float threshold, uint8_t ** out_buf, size_t * out_len) {
+
+	esp_err_t err = ESP_OK;
+	uint8_t *rgb888_out_buf = NULL;
+
+	rgb888_out_buf = (uint8_t*)calloc((fbIn->width*fbIn->height*3), sizeof(uint8_t));
+//	rgb888_out_buf = (uint8_t*)malloc((fbIn->width*fbIn->height*3));
+//	rgb888_out_buf = (uint8_t*)heap_caps_calloc((fbIn->width*fbIn->height*3), sizeof(uint8_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+
+	//First, convert JPEG to RGB888 format
+	bool converted = fmt2rgb888(fbIn->buf, fbIn->len, fbIn->format, rgb888_out_buf);
+	if (converted) {
+
+		fb_data_t fb;
+		fb.width = fbIn->width;
+		fb.height = fbIn->height;
+		fb.data = rgb888_out_buf;
+		fb.bytes_per_pixel = 3;
+		fb.format = FB_BGR888;
+
+		int x = 0, y = 0, w, h;
+
+		for (auto prediction: predictions) {
+
+			if (threshold > 0.0f && prediction.probability < threshold) {
+				continue;
+			}
+
+//			bounding_box_t *boxlist = prediction.region;
+//			char *label = prediction.tagName;
+//			CVC_DEBUG("Draw tag: %s", label);
+//
+//			for (i = 0; i < boxlist->len; i++){
+//				// Rectangle coordinate
+//				x = (int)boxlist->box[i].box_p[0];
+//				y = (int)boxlist->box[i].box_p[1];
+//				w = (int)boxlist->box[i].box_p[2] - x + 1;
+//				h = (int)boxlist->box[i].box_p[3] - y + 1;
+//
+//				// Draw it
+//				fb_gfx_drawFastHLine(&fb, x, y, w, FACE_COLOR_BLUE);
+//				fb_gfx_drawFastHLine(&fb, x, y+h-1, w, FACE_COLOR_BLUE);
+//				fb_gfx_drawFastVLine(&fb, x, y, h, FACE_COLOR_BLUE);
+//				fb_gfx_drawFastVLine(&fb, x+w-1, y, h, FACE_COLOR_BLUE);
+//			}
+//
+//			//Draw label above the bounding rectangle
+//			bool atTop = boxlist->box[0].box_p[1] > 18;
+//			int yLabel = atTop? (boxlist->box[0].box_p[1] - 22): boxlist->box[0].box_p[3] + 4;
+//			int xLabel = boxlist->box[0].box_p[0] + (((boxlist->box[0].box_p[2] - boxlist->box[0].box_p[0]) - (strlen(label) * 14)) / 2);
+
+			BoundingBox_t region = prediction.region;
+			char *label = prediction.tagName;
+//			CVC_DEBUG("Draw tag: %s", label);
+
+			// Rectangle coordinate
+			x = (int)region.left;
+			y = (int)region.top;
+			w = (int)region.width;
+			h = (int)region.height;
+
+			// Draw it
+			fb_gfx_drawFastHLine(&fb, x, y, w, FACE_COLOR_BLUE);
+			fb_gfx_drawFastHLine(&fb, x, y+h-1, w, FACE_COLOR_BLUE);
+			fb_gfx_drawFastVLine(&fb, x, y, h, FACE_COLOR_BLUE);
+			fb_gfx_drawFastVLine(&fb, x+w-1, y, h, FACE_COLOR_BLUE);
+
+			//Draw label above the bounding rectangle
+			bool atTop = region.top > 20;
+			int yLabel = atTop? (region.top - 22): (region.top + region.height) + 4;
+			int xLabel = region.left + ((region.width - (strlen(label) * 14)) / 2);
+
+	//		CVC_DEBUG("Label on x:%d, y:%d", xLabel, yLabel);
+			fb_gfx_print(&fb, xLabel, yLabel, FACE_COLOR_BLUE, label);
+		}
+
+		//convert back RGB888 to JPEG
+		if(!fmt2jpg(rgb888_out_buf, fbIn->width*fbIn->height*3, fbIn->width, fbIn->height, PIXFORMAT_RGB888, 80, out_buf, out_len)){
+			CVC_ERROR("fmt2jpg failed");
+			err = ESP_FAIL;
+		}
+	}
+	else {
+		CVC_ERROR("fmt2rgb888 failed");
+		err = ESP_FAIL;
+	}
+
+	free(rgb888_out_buf);
+
+	if (err != ESP_OK) {
+		CVC_ERROR("SOMETHING FAILED!");
+		*out_buf = fbIn->buf;
+		*out_len = fbIn->len;
+	}
+
+	return err;
+}
+
+//esp_err_t process_json(const char *jsonStr, size_t imgWidth, size_t imgHeight, bounding_box_t **boxlistout, char *label) {
+esp_err_t process_json(const char *jsonStr, size_t imgWidth, size_t imgHeight, CustomVisionClient::CustomVisionDetectionResult_t *result, float threshold = 0.0f) {
 
 	cJSON *root = cJSON_Parse(jsonStr);
 	if (!root) {
@@ -142,23 +243,84 @@ esp_err_t process_json(const char *jsonStr, size_t imgWidth, size_t imgHeight, b
 
 	cJSON *predictions = cJSON_GetObjectItem(root, "predictions");
 	if (!predictions) {
+		CVC_ERROR("No prediction found!");
+		return ESP_FAIL;
+	}
+	if (cJSON_GetArraySize(predictions) == 0) {
+		CVC_ERROR("Empty prediction found!");
 		return ESP_FAIL;
 	}
 
-	float maxProb = 0; int maxProbIdx = 0, idx = 0;
+	float maxProb = 0; int maxProbIdx = -1, idx = 0;
 	cJSON *prediction = NULL;
+
 
 	cJSON_ArrayForEach(prediction, predictions) {
 		cJSON *probability = cJSON_GetObjectItem(prediction, "probability");
 		cJSON *tagName = cJSON_GetObjectItem(prediction, "tagName");
+		if (!tagName) {
+			continue;
+		}
+		cJSON *tagId = cJSON_GetObjectItem(prediction, "tagId");
+		if (!tagId) {
+			continue;
+		}
+
+		CustomVisionClient::CustomVisionDetectionModel_t predModel;
+
+		//To deal with bounding box
+		cJSON *boundingBox = cJSON_GetObjectItem(prediction, "boundingBox");
+		if (boundingBox) {
+			cJSON *left = cJSON_GetObjectItem(boundingBox, "left");
+			cJSON *top = cJSON_GetObjectItem(boundingBox, "top");
+			cJSON *width = cJSON_GetObjectItem(boundingBox, "width");
+			cJSON *height = cJSON_GetObjectItem(boundingBox, "height");
+
+			double leftF = left->valuedouble * imgWidth;
+			double topF = top->valuedouble * imgHeight;
+			double widthF = width->valuedouble * imgWidth;
+			double heightF = height->valuedouble * imgHeight;
+
+			CVC_DEBUG("Bounding box: (%.2f, %.2f, %.2f, %.2f)", leftF, topF, widthF, heightF);
+
+//			box_t *box = predModel.region->box;
+//			box->box_p[0] = leftF;
+//			box->box_p[1] = topF;
+//			box->box_p[2] = leftF + widthF - 1;
+//			box->box_p[3] = topF + heightF - 1;
+			predModel.region.left = leftF;
+			predModel.region.top = topF;
+			predModel.region.width = widthF;
+			predModel.region.height = heightF;
+		}
+		else {
+			continue;
+		}
+
+		strncpy(predModel.tagId, tagId->valuestring, strlen(tagId->valuestring) + 1);
+//		predModel.tagId[strlen(tagId->valuestring)] = '\0';
+		strncpy(predModel.tagName, tagName->valuestring, strlen(tagName->valuestring) + 1);
+//		predModel.tagName[strlen(tagName->valuestring)] = '\0';
+
+		predModel.probability = probability->valuedouble;
+
+		//Add to predictions vector
+		result->predictions.push_back(predModel);
+
+		//To deal with best prediction
 		double probF = probability->valuedouble;
 		if (probF > maxProb) {
 			maxProb = probF;
 			maxProbIdx = idx;
 		}
 
-		CVC_DEBUG("Prediction => idx: %d, tag: %s. prob: %.2f%s", idx, tagName->valuestring, (probF*100), "%");
+		CVC_DEBUG("Prediction => idx: %d, id: %s, tag: %s. prob: %.2f%s", idx, predModel.tagId, predModel.tagName, (predModel.probability*100), "%");
 		idx++;
+	}
+
+	if (maxProbIdx < 0) {
+		result->bestPredictionIndex = -1;
+		return ESP_OK; //Return OK
 	}
 
 	cJSON *bestPrediction = cJSON_GetArrayItem(predictions, maxProbIdx);
@@ -168,44 +330,47 @@ esp_err_t process_json(const char *jsonStr, size_t imgWidth, size_t imgHeight, b
 
 	CVC_DEBUG("Best prediction => idx: %d, tag: %s. prob: %.2f%s", maxProbIdx, bestTagName->valuestring, (bestProbF*100), "%");
 
-	if (bestProbF < 0.5) {
+	if (threshold > 0.0f && bestProbF < threshold) {
 		CVC_ERROR("Best prediction is NOT enough!");
-		return ESP_OK;
+		return ESP_OK; //Return OK
 	}
 
-	if (label) {
-		sprintf(label, "%s (%.2f%s)", bestTagName->valuestring, (bestProbF*100), "%");
+	if (result->bestPredictionLabel != NULL) {
+		sprintf(result->bestPredictionLabel, "%s (%.2f%s)", bestTagName->valuestring, (bestProbF*100), "%");
 	}
 
-	cJSON *boundingBox = cJSON_GetObjectItem(bestPrediction, "boundingBox");
-	if (boundingBox) {
-		cJSON *left = cJSON_GetObjectItem(boundingBox, "left");
-		cJSON *top = cJSON_GetObjectItem(boundingBox, "top");
-		cJSON *width = cJSON_GetObjectItem(boundingBox, "width");
-		cJSON *height = cJSON_GetObjectItem(boundingBox, "height");
+	result->bestPredictionIndex = maxProbIdx;
+	result->bestPredictionThreshold = threshold;
 
-		double leftF = left->valuedouble * imgWidth;
-		double topF = top->valuedouble * imgHeight;
-		double widthF = width->valuedouble * imgWidth;
-		double heightF = height->valuedouble * imgHeight;
-
-		CVC_DEBUG("Bounding box: (%.2f, %.2f, %.2f, %.2f)", leftF, topF, widthF, heightF);
-
-		box_array_t *boxlist = (box_array_t*)calloc(1, sizeof(box_array_t));
-		box_t *box = (box_t*)calloc(1, sizeof(box_t));
-		box->box_p[0] = leftF;
-		box->box_p[1] = topF;
-		box->box_p[2] = leftF + widthF - 1;
-		box->box_p[3] = topF + heightF - 1;
-
-		boxlist->box = box;
-		boxlist->len = 1;
-
-		*boxlistout = boxlist;
-	}
-	else {
-		*boxlistout = NULL;
-	}
+//	cJSON *boundingBox = cJSON_GetObjectItem(bestPrediction, "boundingBox");
+//	if (boundingBox) {
+//		cJSON *left = cJSON_GetObjectItem(boundingBox, "left");
+//		cJSON *top = cJSON_GetObjectItem(boundingBox, "top");
+//		cJSON *width = cJSON_GetObjectItem(boundingBox, "width");
+//		cJSON *height = cJSON_GetObjectItem(boundingBox, "height");
+//
+//		double leftF = left->valuedouble * imgWidth;
+//		double topF = top->valuedouble * imgHeight;
+//		double widthF = width->valuedouble * imgWidth;
+//		double heightF = height->valuedouble * imgHeight;
+//
+//		CVC_DEBUG("Bounding box: (%.2f, %.2f, %.2f, %.2f)", leftF, topF, widthF, heightF);
+//
+//		bounding_box_t *boxlist = (bounding_box_t*)calloc(1, sizeof(bounding_box_t));
+//		box_t *box = (box_t*)calloc(1, sizeof(box_t));
+//		box->box_p[0] = leftF;
+//		box->box_p[1] = topF;
+//		box->box_p[2] = leftF + widthF - 1;
+//		box->box_p[3] = topF + heightF - 1;
+//
+//		boxlist->box = box;
+//		boxlist->len = 1;
+//
+//		*boxlistout = boxlist;
+//	}
+//	else {
+//		*boxlistout = NULL;
+//	}
 
 	return ESP_OK;
 }
@@ -245,7 +410,9 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-esp_err_t CustomVisionClient::detect(camera_fb_t *fbIn, box_array_t **out_boxlist, char *out_label, bool drawInfo, uint8_t **out_buf, size_t *out_len) {
+//esp_err_t CustomVisionClient::detect(camera_fb_t *fbIn, bounding_box_t **out_boxlist, char *out_label, bool drawInfo, uint8_t **out_buf, size_t *out_len) {
+esp_err_t CustomVisionClient::detect(camera_fb_t *fbIn, CustomVisionDetectionResult_t *predResult, float threshold, bool drawInfo, uint8_t **out_buf, size_t *out_len) {
+
 	esp_err_t err = ESP_OK;
 
 	httpResponseString.clear();
@@ -253,7 +420,8 @@ esp_err_t CustomVisionClient::detect(camera_fb_t *fbIn, box_array_t **out_boxlis
 	//Create HTTP client
 	char url[255];
 //https://southcentralus.api.cognitive.microsoft.com/customvision/v2.0/Prediction/28bdc115-5ec4-48e5-aa96-0f627d67137d/image?iterationId=dce22280-1420-4be9-b2f4-95177def027f
-	snprintf(url, 255, "https://%s/customvision/v2.0/Prediction/%s/image?iterationId=%s", clientConfig_.host, clientConfig_.projectId, clientConfig_.iterationId);
+	snprintf(url, 255, "https://%s/customvision/v2.0/Prediction/%s/image%s?iterationId=%s",
+			clientConfig_.host, clientConfig_.projectId, (clientConfig_.shouldStoreImage? "": "/nostore"), clientConfig_.iterationId);
 	CVC_DEBUG("URL %s", url);
 
 	esp_http_client_config_t config = {};
@@ -306,35 +474,60 @@ esp_err_t CustomVisionClient::detect(camera_fb_t *fbIn, box_array_t **out_boxlis
 	}
 
 	//Parse json
-	box_array_t *box_list = NULL;
-	char *label = (out_label)? out_label: (char*)calloc(64, sizeof(char));
+//	bounding_box_t *box_list = NULL;
+//	char *label = (out_label)? out_label: (char*)calloc(64, sizeof(char));
+//
+//	err = process_json(httpResponseString.c_str(), fbIn->width, fbIn->height, &box_list, label);
+//	if (err != ESP_OK) {
+//		CVC_ERROR("JSON parsing is failed");
+//	}
+//	else if (box_list != NULL){
+//
+//		CVC_DEBUG("Label: %s", label);
+//
+//		if (!out_boxlist || drawInfo) {
+//			//Draw box on top of frame buffer
+//			putInfoOnFrame(fbIn, box_list, label, out_buf, out_len);
+//			free(box_list->box);
+//			free(box_list);
+//		}
+//		else {
+//			if (out_boxlist) {
+//				*out_boxlist = box_list;
+//			}
+////			if (out_label) {
+////				strncpy(out_label, label, strlen(label));
+////			}
+//		}
+//	}
+//
+//	if (!out_label) {
+//		free(label);
+//	}
 
-	err = process_json(httpResponseString.c_str(), fbIn->width, fbIn->height, &box_list, label);
+	bool _resIsLocal = false;
+	if (predResult == NULL) {
+		predResult = new CustomVisionDetectionResult_t();
+		_resIsLocal = true;
+	}
+
+	err = process_json(httpResponseString.c_str(), fbIn->width, fbIn->height, predResult, threshold);
 	if (err != ESP_OK) {
 		CVC_ERROR("JSON parsing is failed");
 	}
-	else if (box_list != NULL){
+	else {
 
-		CVC_DEBUG("Label: %s", label);
+		CVC_DEBUG("Detected label: %s", predResult->bestPredictionLabel);
 
-		if (!out_boxlist || drawInfo) {
+		if (drawInfo) {
 			//Draw box on top of frame buffer
-			putInfoOnFrame(fbIn, box_list, label, out_buf, out_len);
-			free(box_list->box);
-			free(box_list);
-		}
-		else {
-			if (out_boxlist) {
-				*out_boxlist = box_list;
-			}
-//			if (out_label) {
-//				strncpy(out_label, label, strlen(label));
-//			}
+			putInfoOnFrame(fbIn, predResult->predictions, threshold, out_buf, out_len);
 		}
 	}
 
-	if (!out_label) {
-		free(label);
+	if (_resIsLocal) {
+		delete predResult;
+		predResult = NULL;
 	}
 
 	httpResponseString.clear();
@@ -348,29 +541,40 @@ void predict_async_task(void *args) {
 
 	CustomVisionClient::CustomVisionDetectionConfig_t *predCfg = (CustomVisionClient::CustomVisionDetectionConfig_t*)args;
 
-	box_array_t *box_list = NULL;
-	char *label = (char*)calloc(64, sizeof(char));
+//	bounding_box_t *box_list = NULL;
+//	char *label = (char*)calloc(64, sizeof(char));
+//
+//	// Do "blocking" detection
+//	esp_err_t res = predCfg->client->detect(predCfg->camera_fb, &box_list, label);
+//	if (res != ESP_OK) {
+//		CVC_ERROR("Detection is failed");
+//		free(label);
+//	}
+//	else {
+//		CVC_DEBUG("Detection is success");
+//		CustomVisionClient::CustomVisionDetectionModel_t res = {};
+//
+//		res.region = box_list;
+//		res.tagName = label;
+//
+//		xQueueSend(*predCfg->queue, &res, portMAX_DELAY);
+//	}
 
+	CustomVisionClient::CustomVisionDetectionResult_t result = {};
 	// Do "blocking" detection
-	esp_err_t res = predCfg->client->detect(predCfg->camera_fb, &box_list, label);
+	esp_err_t res = predCfg->client->detect(predCfg->cameraFb, &result, predCfg->bestPredictionThreshold);
 	if (res != ESP_OK) {
 		CVC_ERROR("Detection is failed");
-		free(label);
 	}
 	else {
 		CVC_DEBUG("Detection is success");
-		CustomVisionClient::CustomVisionDetectionResult_t res = {};
-
-		res.box_list = box_list;
-		res.label = label;
-
-		xQueueSend(*predCfg->queue, &res, portMAX_DELAY);
+		xQueueSend(*predCfg->queue, &result, portMAX_DELAY);
 	}
 
 	vTaskDelete(NULL);
 }
 
-esp_err_t CustomVisionClient::detectAsync(camera_fb_t* fbIn) {
+esp_err_t CustomVisionClient::detectAsync(camera_fb_t* fbIn, float threshold) {
 
 	if (!detectionQueue) {
 		detectionQueue = xQueueCreate(2, sizeof(CustomVisionDetectionResult_t));
@@ -380,8 +584,9 @@ esp_err_t CustomVisionClient::detectAsync(camera_fb_t* fbIn) {
 		detectionCfg_ = new CustomVisionDetectionConfig_t();
 	}
 
-	detectionCfg_->camera_fb = fbIn;
+	detectionCfg_->cameraFb = fbIn;
 	detectionCfg_->queue = &detectionQueue;
+	detectionCfg_->bestPredictionThreshold = threshold;
 	detectionCfg_->client = this;
 
 	BaseType_t res = xTaskCreate(&predict_async_task, "detect_task", 8192, (void*)detectionCfg_, configMAX_PRIORITIES - 3, NULL);
