@@ -34,6 +34,8 @@
 #define FACE_COLOR_BLUE   0x00FF0000
 #define FACE_COLOR_YELLOW (FACE_COLOR_RED | FACE_COLOR_GREEN)
 
+#define FACE_BOX_LABEL_COLOR	FACE_COLOR_YELLOW
+
 class CustomVisionClient {
 public:
 	struct CustomVisionClientConfig_t {

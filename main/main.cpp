@@ -325,7 +325,7 @@ void startHttpd() {
 	app_state = APP_WIFI_CONNECTED;
 
 	httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-//	config.stack_size = (4096*2);
+	config.stack_size = (4096*2);
 //	config.max_open_sockets = 10;
 //	config.send_wait_timeout = 30;
 //	config.recv_wait_timeout = 30;

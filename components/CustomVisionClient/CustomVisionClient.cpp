@@ -96,7 +96,8 @@ esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, const std::vecto
 			}
 
 			BoundingBox_t region = prediction.region;
-			char *label = prediction.tagName;
+			char label[64];
+			sprintf(label, "%s (%.0f%s)", prediction.tagName, (prediction.probability * 100), "%");
 //			CVC_DEBUG("Draw tag: %s", label);
 
 			// Rectangle coordinate
@@ -106,10 +107,10 @@ esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, const std::vecto
 			h = (int)region.height;
 
 			// Draw it
-			fb_gfx_drawFastHLine(&fb, x, y, w, FACE_COLOR_BLUE);
-			fb_gfx_drawFastHLine(&fb, x, y+h-1, w, FACE_COLOR_BLUE);
-			fb_gfx_drawFastVLine(&fb, x, y, h, FACE_COLOR_BLUE);
-			fb_gfx_drawFastVLine(&fb, x+w-1, y, h, FACE_COLOR_BLUE);
+			fb_gfx_drawFastHLine(&fb, x, y, w, FACE_BOX_LABEL_COLOR);
+			fb_gfx_drawFastHLine(&fb, x, y+h-1, w, FACE_BOX_LABEL_COLOR);
+			fb_gfx_drawFastVLine(&fb, x, y, h, FACE_BOX_LABEL_COLOR);
+			fb_gfx_drawFastVLine(&fb, x+w-1, y, h, FACE_BOX_LABEL_COLOR);
 
 			//Draw label above the bounding rectangle
 			bool atTop = region.top > 20;
@@ -117,7 +118,7 @@ esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, const std::vecto
 			int xLabel = region.left + ((region.width - (strlen(label) * 14)) / 2);
 
 //			CVC_DEBUG("Label on x:%d, y:%d", xLabel, yLabel);
-			fb_gfx_print(&fb, xLabel, yLabel, FACE_COLOR_BLUE, label);
+			fb_gfx_print(&fb, xLabel, yLabel, FACE_BOX_LABEL_COLOR, label);
 		}
 
 		//convert back RGB888 to JPEG
