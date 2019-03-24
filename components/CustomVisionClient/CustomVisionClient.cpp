@@ -40,7 +40,6 @@ esp_err_t CustomVisionClient::putLabelOnFrame(camera_fb_t* fbIn,
 	esp_err_t err = ESP_OK;
 	uint8_t *rgb888_out_buf = NULL;
 
-	//SUPER BUGS!
 	rgb888_out_buf = (uint8_t*)calloc((fbIn->width*fbIn->height*3), sizeof(uint8_t));
 //	rgb888_out_buf = (uint8_t*)malloc((fbIn->width*fbIn->height*3));
 //	rgb888_out_buf = (uint8_t*)heap_caps_calloc((fbIn->width*fbIn->height*3), sizeof(uint8_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -67,75 +66,7 @@ esp_err_t CustomVisionClient::putLabelOnFrame(camera_fb_t* fbIn,
 	return err;
 }
 
-/*
-esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, bounding_box_t *boxlist, const char *label, uint8_t ** out_buf, size_t * out_len) {
-
-	esp_err_t err = ESP_OK;
-	uint8_t *rgb888_out_buf = NULL;
-
-	//SUPER BUGS!
-	rgb888_out_buf = (uint8_t*)calloc((fbIn->width*fbIn->height*3), sizeof(uint8_t));
-//	rgb888_out_buf = (uint8_t*)malloc((fbIn->width*fbIn->height*3));
-//	rgb888_out_buf = (uint8_t*)heap_caps_calloc((fbIn->width*fbIn->height*3), sizeof(uint8_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-
-	//First, convert JPEG to RGB888 format
-	bool converted = fmt2rgb888(fbIn->buf, fbIn->len, fbIn->format, rgb888_out_buf);
-	if (converted) {
-
-		fb_data_t fb;
-		fb.width = fbIn->width;
-		fb.height = fbIn->height;
-		fb.data = rgb888_out_buf;
-		fb.bytes_per_pixel = 3;
-		fb.format = FB_BGR888;
-
-		int x = 0, y = 0, w, h, i;
-		for (i = 0; i < boxlist->len; i++){
-			// Rectangle coordinate
-			x = (int)boxlist->box[i].box_p[0];
-			y = (int)boxlist->box[i].box_p[1];
-			w = (int)boxlist->box[i].box_p[2] - x + 1;
-			h = (int)boxlist->box[i].box_p[3] - y + 1;
-
-			// Draw it
-			fb_gfx_drawFastHLine(&fb, x, y, w, FACE_COLOR_BLUE);
-			fb_gfx_drawFastHLine(&fb, x, y+h-1, w, FACE_COLOR_BLUE);
-			fb_gfx_drawFastVLine(&fb, x, y, h, FACE_COLOR_BLUE);
-			fb_gfx_drawFastVLine(&fb, x+w-1, y, h, FACE_COLOR_BLUE);
-		}
-
-		//Draw label above the bounding rectangle
-		bool atTop = boxlist->box[0].box_p[1] > 18;
-		int yLabel = atTop? (boxlist->box[0].box_p[1] - 22): boxlist->box[0].box_p[3] + 4;
-		int xLabel = boxlist->box[0].box_p[0] + (((boxlist->box[0].box_p[2] - boxlist->box[0].box_p[0]) - (strlen(label) * 14)) / 2);
-
-//		CVC_DEBUG("Label on x:%d, y:%d", xLabel, yLabel);
-		fb_gfx_print(&fb, xLabel, yLabel, FACE_COLOR_BLUE, label);
-
-		//convert back RGB888 to JPEG
-		if(!fmt2jpg(rgb888_out_buf, fbIn->width*fbIn->height*3, fbIn->width, fbIn->height, PIXFORMAT_RGB888, 80, out_buf, out_len)){
-			CVC_ERROR("fmt2jpg failed");
-			err = ESP_FAIL;
-		}
-	}
-	else {
-		CVC_ERROR("fmt2rgb888 failed");
-		err = ESP_FAIL;
-	}
-
-	free(rgb888_out_buf);
-
-	if (err != ESP_OK) {
-		CVC_ERROR("SOMETHING FAILED!");
-		*out_buf = fbIn->buf;
-		*out_len = fbIn->len;
-	}
-
-	return err;
-}
-*/
-
-esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, const std::vector<CustomVisionDetectionModel_t> &predictions, float threshold, uint8_t ** out_buf, size_t * out_len) {
+esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, const std::vector<CustomVisionDetectionModel_t> &predictions, float minDispThreshold, uint8_t ** out_buf, size_t * out_len) {
 
 	esp_err_t err = ESP_OK;
 	uint8_t *rgb888_out_buf = NULL;
@@ -155,36 +86,14 @@ esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, const std::vecto
 		fb.bytes_per_pixel = 3;
 		fb.format = FB_BGR888;
 
-		int x = 0, y = 0, w, h;
+		int x = 0, y = 0, w = 0, h = 0;
 
 		for (auto prediction: predictions) {
 
-			if (threshold > 0.0f && prediction.probability < threshold) {
+			// If minimum displayed box threshold is set and it's bigger than current prediction's probability, then ignore the prediction
+			if (minDispThreshold > 0.0f && prediction.probability < minDispThreshold) {
 				continue;
 			}
-
-//			bounding_box_t *boxlist = prediction.region;
-//			char *label = prediction.tagName;
-//			CVC_DEBUG("Draw tag: %s", label);
-//
-//			for (i = 0; i < boxlist->len; i++){
-//				// Rectangle coordinate
-//				x = (int)boxlist->box[i].box_p[0];
-//				y = (int)boxlist->box[i].box_p[1];
-//				w = (int)boxlist->box[i].box_p[2] - x + 1;
-//				h = (int)boxlist->box[i].box_p[3] - y + 1;
-//
-//				// Draw it
-//				fb_gfx_drawFastHLine(&fb, x, y, w, FACE_COLOR_BLUE);
-//				fb_gfx_drawFastHLine(&fb, x, y+h-1, w, FACE_COLOR_BLUE);
-//				fb_gfx_drawFastVLine(&fb, x, y, h, FACE_COLOR_BLUE);
-//				fb_gfx_drawFastVLine(&fb, x+w-1, y, h, FACE_COLOR_BLUE);
-//			}
-//
-//			//Draw label above the bounding rectangle
-//			bool atTop = boxlist->box[0].box_p[1] > 18;
-//			int yLabel = atTop? (boxlist->box[0].box_p[1] - 22): boxlist->box[0].box_p[3] + 4;
-//			int xLabel = boxlist->box[0].box_p[0] + (((boxlist->box[0].box_p[2] - boxlist->box[0].box_p[0]) - (strlen(label) * 14)) / 2);
 
 			BoundingBox_t region = prediction.region;
 			char *label = prediction.tagName;
@@ -207,7 +116,7 @@ esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, const std::vecto
 			int yLabel = atTop? (region.top - 22): (region.top + region.height) + 4;
 			int xLabel = region.left + ((region.width - (strlen(label) * 14)) / 2);
 
-	//		CVC_DEBUG("Label on x:%d, y:%d", xLabel, yLabel);
+//			CVC_DEBUG("Label on x:%d, y:%d", xLabel, yLabel);
 			fb_gfx_print(&fb, xLabel, yLabel, FACE_COLOR_BLUE, label);
 		}
 
@@ -233,7 +142,6 @@ esp_err_t CustomVisionClient::putInfoOnFrame(camera_fb_t *fbIn, const std::vecto
 	return err;
 }
 
-//esp_err_t process_json(const char *jsonStr, size_t imgWidth, size_t imgHeight, bounding_box_t **boxlistout, char *label) {
 esp_err_t process_json(const char *jsonStr, size_t imgWidth, size_t imgHeight, CustomVisionClient::CustomVisionDetectionResult_t *result, float threshold = 0.0f) {
 
 	cJSON *root = cJSON_Parse(jsonStr);
@@ -256,6 +164,7 @@ esp_err_t process_json(const char *jsonStr, size_t imgWidth, size_t imgHeight, C
 
 
 	cJSON_ArrayForEach(prediction, predictions) {
+
 		cJSON *probability = cJSON_GetObjectItem(prediction, "probability");
 		cJSON *tagName = cJSON_GetObjectItem(prediction, "tagName");
 		if (!tagName) {
@@ -335,42 +244,12 @@ esp_err_t process_json(const char *jsonStr, size_t imgWidth, size_t imgHeight, C
 		return ESP_OK; //Return OK
 	}
 
-	if (result->bestPredictionLabel != NULL) {
-		sprintf(result->bestPredictionLabel, "%s (%.2f%s)", bestTagName->valuestring, (bestProbF*100), "%");
-	}
+//	if (result->bestPredictionLabel != NULL) {
+//		sprintf(result->bestPredictionLabel, "%s (%.2f%s)", bestTagName->valuestring, (bestProbF*100), "%");
+//	}
 
 	result->bestPredictionIndex = maxProbIdx;
 	result->bestPredictionThreshold = threshold;
-
-//	cJSON *boundingBox = cJSON_GetObjectItem(bestPrediction, "boundingBox");
-//	if (boundingBox) {
-//		cJSON *left = cJSON_GetObjectItem(boundingBox, "left");
-//		cJSON *top = cJSON_GetObjectItem(boundingBox, "top");
-//		cJSON *width = cJSON_GetObjectItem(boundingBox, "width");
-//		cJSON *height = cJSON_GetObjectItem(boundingBox, "height");
-//
-//		double leftF = left->valuedouble * imgWidth;
-//		double topF = top->valuedouble * imgHeight;
-//		double widthF = width->valuedouble * imgWidth;
-//		double heightF = height->valuedouble * imgHeight;
-//
-//		CVC_DEBUG("Bounding box: (%.2f, %.2f, %.2f, %.2f)", leftF, topF, widthF, heightF);
-//
-//		bounding_box_t *boxlist = (bounding_box_t*)calloc(1, sizeof(bounding_box_t));
-//		box_t *box = (box_t*)calloc(1, sizeof(box_t));
-//		box->box_p[0] = leftF;
-//		box->box_p[1] = topF;
-//		box->box_p[2] = leftF + widthF - 1;
-//		box->box_p[3] = topF + heightF - 1;
-//
-//		boxlist->box = box;
-//		boxlist->len = 1;
-//
-//		*boxlistout = boxlist;
-//	}
-//	else {
-//		*boxlistout = NULL;
-//	}
 
 	return ESP_OK;
 }
@@ -410,7 +289,6 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-//esp_err_t CustomVisionClient::detect(camera_fb_t *fbIn, bounding_box_t **out_boxlist, char *out_label, bool drawInfo, uint8_t **out_buf, size_t *out_len) {
 esp_err_t CustomVisionClient::detect(camera_fb_t *fbIn, CustomVisionDetectionResult_t *predResult, float threshold, bool drawInfo, uint8_t **out_buf, size_t *out_len) {
 
 	esp_err_t err = ESP_OK;
@@ -474,36 +352,6 @@ esp_err_t CustomVisionClient::detect(camera_fb_t *fbIn, CustomVisionDetectionRes
 	}
 
 	//Parse json
-//	bounding_box_t *box_list = NULL;
-//	char *label = (out_label)? out_label: (char*)calloc(64, sizeof(char));
-//
-//	err = process_json(httpResponseString.c_str(), fbIn->width, fbIn->height, &box_list, label);
-//	if (err != ESP_OK) {
-//		CVC_ERROR("JSON parsing is failed");
-//	}
-//	else if (box_list != NULL){
-//
-//		CVC_DEBUG("Label: %s", label);
-//
-//		if (!out_boxlist || drawInfo) {
-//			//Draw box on top of frame buffer
-//			putInfoOnFrame(fbIn, box_list, label, out_buf, out_len);
-//			free(box_list->box);
-//			free(box_list);
-//		}
-//		else {
-//			if (out_boxlist) {
-//				*out_boxlist = box_list;
-//			}
-////			if (out_label) {
-////				strncpy(out_label, label, strlen(label));
-////			}
-//		}
-//	}
-//
-//	if (!out_label) {
-//		free(label);
-//	}
 
 	bool _resIsLocal = false;
 	if (predResult == NULL) {
@@ -517,11 +365,21 @@ esp_err_t CustomVisionClient::detect(camera_fb_t *fbIn, CustomVisionDetectionRes
 	}
 	else {
 
-		CVC_DEBUG("Detected label: %s", predResult->bestPredictionLabel);
+		if (predResult->isBestPredictionFound()) {
 
-		if (drawInfo) {
-			//Draw box on top of frame buffer
-			putInfoOnFrame(fbIn, predResult->predictions, threshold, out_buf, out_len);
+			//Just for making sure we get the best pred result
+			char bestPredLabel[64];
+			if (predResult->getBestPredictionLabel(bestPredLabel)) {
+				CVC_DEBUG("Detected best prediction's label: %s", bestPredLabel);
+			}
+
+			if (drawInfo) {
+				//Draw box on top of frame buffer
+				putInfoOnFrame(fbIn, predResult->predictions, threshold, out_buf, out_len);
+			}
+		}
+		else {
+			CVC_ERROR("No detected best prediction");
 		}
 	}
 
@@ -537,37 +395,19 @@ esp_err_t CustomVisionClient::detect(camera_fb_t *fbIn, CustomVisionDetectionRes
 
 void predict_async_task(void *args) {
 
-	CVC_DEBUG("Begin Prediction");
+	CVC_INFO("Begin async-ed detection");
 
 	CustomVisionClient::CustomVisionDetectionConfig_t *predCfg = (CustomVisionClient::CustomVisionDetectionConfig_t*)args;
 
-//	bounding_box_t *box_list = NULL;
-//	char *label = (char*)calloc(64, sizeof(char));
-//
-//	// Do "blocking" detection
-//	esp_err_t res = predCfg->client->detect(predCfg->camera_fb, &box_list, label);
-//	if (res != ESP_OK) {
-//		CVC_ERROR("Detection is failed");
-//		free(label);
-//	}
-//	else {
-//		CVC_DEBUG("Detection is success");
-//		CustomVisionClient::CustomVisionDetectionModel_t res = {};
-//
-//		res.region = box_list;
-//		res.tagName = label;
-//
-//		xQueueSend(*predCfg->queue, &res, portMAX_DELAY);
-//	}
-
 	CustomVisionClient::CustomVisionDetectionResult_t result = {};
+
 	// Do "blocking" detection
 	esp_err_t res = predCfg->client->detect(predCfg->cameraFb, &result, predCfg->bestPredictionThreshold);
 	if (res != ESP_OK) {
-		CVC_ERROR("Detection is failed");
+		CVC_ERROR("Async-ed detection is failed");
 	}
 	else {
-		CVC_DEBUG("Detection is success");
+		CVC_INFO("Async-ed detection is success");
 		xQueueSend(*predCfg->queue, &result, portMAX_DELAY);
 	}
 

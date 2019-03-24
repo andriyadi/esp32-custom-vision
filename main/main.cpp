@@ -126,17 +126,29 @@ static esp_err_t recog_handler(httpd_req_t *req){
 				res = _cvc->detect(fb, predResult, MIN_PROB_BEST_PREDICTION);
 				if (res == ESP_OK) {
 					// Draw box and label
-					_cvc->putInfoOnFrame(fb, predResult->predictions, MIN_PROB_BEST_PREDICTION, &out_buff, &out_len);
+					_cvc->putInfoOnFrame(fb, predResult->predictions, MIN_PROB_BEST_PREDICTION*0.75f, &out_buff, &out_len);
 
 #if CONFIG_CAMERA_BOARD_TTGO_TCAM
-
-					CustomVisionClient::CustomVisionDetectionModel_t bestPred = predResult->predictions.at(predResult->bestPredictionIndex);
+					// Display label on OLED
+					ssd1306_clearScreen();
+					const CustomVisionClient::CustomVisionDetectionModel_t *bestPred = predResult->getBestPrediction();
+					if (bestPred != NULL) {
+						ssd1306_setFixedFont(ssd1306xled_font5x7);
+						ssd1306_printFixedN(5, 5, "Hello", STYLE_BOLD, FONT_SIZE_2X);
+						ssd1306_setFixedFont(ssd1306xled_font6x8);
+						ssd1306_printFixedN(5, 30, bestPred->tagName, STYLE_BOLD, FONT_SIZE_NORMAL);
+					} else {
+						ssd1306_setFixedFont(ssd1306xled_font5x7);
+						ssd1306_printFixedN(5, (ssd1306_displayHeight() - 8)/2, "Nobody there", STYLE_BOLD, FONT_SIZE_2X);
+					}
+#endif
+				}
+				else {
+#if CONFIG_CAMERA_BOARD_TTGO_TCAM
 					// Display label on OLED
 					ssd1306_clearScreen();
 					ssd1306_setFixedFont(ssd1306xled_font5x7);
-					ssd1306_printFixedN(5, 5, "Hello", STYLE_BOLD, FONT_SIZE_2X);
-					ssd1306_setFixedFont(ssd1306xled_font6x8);
-					ssd1306_printFixedN(5, 30, bestPred.tagName, STYLE_BOLD, FONT_SIZE_NORMAL);
+					ssd1306_printFixedN(5, (ssd1306_displayHeight() - 8)/2, "Nobody there", STYLE_BOLD, FONT_SIZE_2X);
 #endif
 				}
 
@@ -233,7 +245,6 @@ static esp_err_t stream_handler(httpd_req_t *req){
 //				if (xQueueReceive(_cvc->detectionQueue, _predRes, 5) != pdFALSE) {
 //					ESP_LOGI(TAG, "Got async-ed detection result. label: %s", _predRes->bestPredictionLabel);
 				if (xQueueReceive(_cvc->detectionQueue, &_predRes, 5) != pdFALSE) {
-					ESP_LOGI(TAG, "Got async-ed detection result. label: %s", _predRes.bestPredictionLabel);
 
 					app_state = APP_DONE_RECOGNITION;
 					_showInfoUntil = esp_timer_get_time() + STREAM_PREDICTION_INTERVAL/2;
@@ -263,7 +274,7 @@ static esp_err_t stream_handler(httpd_req_t *req){
 //				if (_predRes != NULL && !_predRes->predictions.empty()) {
 //					// If prediction is there, draw it
 //					_cvc->putInfoOnFrame(fb, _predRes->predictions, MIN_PROB_BEST_PREDICTION, &_jpg_buf, &_jpg_buf_len);
-				if (_predRes.bestPredictionFound() && !_predRes.predictions.empty()) {
+				if (_predRes.isBestPredictionFound() && !_predRes.predictions.empty()) {
 					// If prediction is there, draw it
 					_cvc->putInfoOnFrame(fb, _predRes.predictions, MIN_PROB_BEST_PREDICTION*0.75f, &_jpg_buf, &_jpg_buf_len);
 

@@ -19,21 +19,13 @@
 //#include "image_util.h"
 #include <vector>
 
-#define CVC_DEBUG(...)	ESP_LOGI("CVC", __VA_ARGS__)
+#define CVC_DEBUG_ENABLED 	1
+
+#define CVC_DEBUG(...)	if (CVC_DEBUG_ENABLED) ESP_LOGI("CVC", __VA_ARGS__);
+#define CVC_INFO(...)	ESP_LOGI("CVC", __VA_ARGS__)
 #define CVC_ERROR(...)	ESP_LOGE("CVC", __VA_ARGS__)
 
 //typedef float fptp_t;
-//
-//typedef struct
-//{
-//	fptp_t box_p[4];
-//} box_t;
-//
-//typedef struct tag_box_list
-//{
-//	box_t *box = NULL;
-//	int len = 0;
-//} bounding_box_t;
 
 #define FACE_COLOR_WHITE  0x00FFFFFF
 #define FACE_COLOR_BLACK  0x00000000
@@ -64,27 +56,18 @@ public:
 	};
 
 	struct CustomVisionDetectionModel_t {
-//		bounding_box_t *region  = NULL;
-		char tagName[64];// = NULL;
-		char tagId[40];// = NULL;
+		char tagName[64];	// = NULL; --> Somehow I can not use dynamic allocation for this class
+		char tagId[40];		// = NULL;
 		float probability = 0.0f;
 		BoundingBox_t region = {0, 0, 0, 0};
 
 		CustomVisionDetectionModel_t() {
-//			region = (bounding_box_t*)calloc(1, sizeof(bounding_box_t));
-//			box_t *box = (box_t*)calloc(1, sizeof(box_t));
-//			region->box = box;
-//			region->len = 1;
-
-//			tagName = (char*)malloc(64);//new char[64]();
-//			memset(tagName, 0, 64);
-//			tagId = (char*)malloc(40);//new char[40]();
-//			memset(tagId, 0, 64);
+//			tagName = (char*)calloc(64, sizeof(char));//new char[64]();
+//			tagId = (char*)calloc(40, sizeof(char));//new char[40]();
 
 		}
 
 		~CustomVisionDetectionModel_t() {
-
 //			if (tagId != NULL) {
 ////				delete[] tagId;
 ////				tagId = NULL;
@@ -95,29 +78,20 @@ public:
 ////				tagName = NULL;
 //				free(tagName);
 //			}
-//			if (region != NULL) {
-//				if (region->box != NULL) {
-//					free(region->box);
-//				}
-//				free(region);
-//				region = NULL;
-//			}
 		}
 	};
 
 	struct CustomVisionDetectionResult_t {
 		std::vector<CustomVisionDetectionModel_t> predictions;
 		char *id = NULL;
+		float bestPredictionThreshold = 0.5f;
 
 		//Just for convenience
 		int16_t bestPredictionIndex = -1;
-		char *bestPredictionLabel = NULL;
-		float bestPredictionThreshold = 0.5f;
 
 		CustomVisionDetectionResult_t() {
 			predictions.reserve(10);
 			id = new char[40]();
-			bestPredictionLabel = new char[64]();
 		}
 
 		~CustomVisionDetectionResult_t() {
@@ -125,20 +99,34 @@ public:
 				delete[] id;
 				id = NULL;
 			}
+		}
 
-			if (bestPredictionLabel != NULL) {
-				delete[] bestPredictionLabel;
-				bestPredictionLabel = NULL;
+		bool isBestPredictionFound() {
+			return (bestPredictionIndex >= 0);
+		}
+
+		const CustomVisionClient::CustomVisionDetectionModel_t *getBestPrediction() {
+			if (!isBestPredictionFound()) {
+				return NULL;
+			}
+			else {
+				return &predictions.at(bestPredictionIndex);
 			}
 		}
 
-		bool bestPredictionFound() {
-			return (bestPredictionIndex >= 0);
+		bool getBestPredictionLabel(char *label) {
+			if (label == NULL || !isBestPredictionFound()) {
+				return false;
+			}
+
+			CustomVisionClient::CustomVisionDetectionModel_t bestPred = predictions.at(bestPredictionIndex);
+			sprintf(label, "%s (%.2f%s)", bestPred.tagName, (bestPred.probability*100), "%");
+
+			return true;
 		}
 
 		void clear() {
 			memset(id, 0, 40);
-			memset(bestPredictionLabel, 0, 64);
 			predictions.clear();
 		}
 	};
