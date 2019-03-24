@@ -94,63 +94,46 @@ static esp_err_t recog_handler(httpd_req_t *req){
 			CustomVisionClient *_cvc = (CustomVisionClient*)req->user_ctx;
 			if (_cvc != NULL) {
 
-				// Alternative 1
-//				res = _cvc->detect(fb, NULL, NULL, true, &out_buff, &out_len);
+#if CONFIG_CAMERA_BOARD_TTGO_TCAM
+				ssd1306_clearScreen();
+				ssd1306_printFixedN((128 - 11*10)/2, 30, "Detecting..", STYLE_BOLD, FONT_SIZE_2X);
+#endif
+
+				CustomVisionClient::CustomVisionDetectionResult_t *predResult = new CustomVisionClient::CustomVisionDetectionResult_t();
+
+				// Alternative 1 --> use drawInfo true to draw by detect method
+//				res = _cvc->detect(fb, predResult, MIN_PROB_BEST_PREDICTION, true, &out_buff, &out_len);
 //				if (res != ESP_OK) {
 //	//				request->send(500, "text/plain", "Prediction is failed");
 //	//				return;
 //				}
 
-				// Alternative 2
-//				bounding_box_t *box_list = nullptr;
-//				char label[64];
-//				res = _cvc->detect(fb, &box_list, label);
-//				if (res == ESP_OK) {
-//					// Draw box and label
-//					_cvc->putInfoOnFrame(fb, box_list, label, &out_buff, &out_len);
-//
-//#if CONFIG_CAMERA_BOARD_TTGO_TCAM
-//					// Display label on OLED
-//					ssd1306_clearScreen();
-//					ssd1306_setFixedFont(ssd1306xled_font5x7);
-//					ssd1306_printFixedN(5, 5, "Hello", STYLE_BOLD, FONT_SIZE_2X);
-//					ssd1306_setFixedFont(ssd1306xled_font6x8);
-//					ssd1306_printFixedN(5, 30, label, STYLE_BOLD, FONT_SIZE_NORMAL);
-//#endif
-//
-//					free(box_list->box);
-//					free(box_list);
-//				}
-
-				CustomVisionClient::CustomVisionDetectionResult_t *predResult = new CustomVisionClient::CustomVisionDetectionResult_t();
+				// Alternative 2 --> explicitely call putInfoOnFrame to draw bounding box and label
 				res = _cvc->detect(fb, predResult, MIN_PROB_BEST_PREDICTION);
 				if (res == ESP_OK) {
 					// Draw box and label
 					_cvc->putInfoOnFrame(fb, predResult->predictions, MIN_PROB_BEST_PREDICTION*0.75f, &out_buff, &out_len);
+				}
 
 #if CONFIG_CAMERA_BOARD_TTGO_TCAM
-					// Display label on OLED
-					ssd1306_clearScreen();
-					const CustomVisionClient::CustomVisionDetectionModel_t *bestPred = predResult->getBestPrediction();
-					if (bestPred != NULL) {
-						ssd1306_setFixedFont(ssd1306xled_font5x7);
-						ssd1306_printFixedN(5, 5, "Hello", STYLE_BOLD, FONT_SIZE_2X);
-						ssd1306_setFixedFont(ssd1306xled_font6x8);
-						ssd1306_printFixedN(5, 30, bestPred->tagName, STYLE_BOLD, FONT_SIZE_NORMAL);
-					} else {
-						ssd1306_setFixedFont(ssd1306xled_font5x7);
-						ssd1306_printFixedN(5, (ssd1306_displayHeight() - 8)/2, "Nobody there", STYLE_BOLD, FONT_SIZE_2X);
-					}
-#endif
-				}
-				else {
-#if CONFIG_CAMERA_BOARD_TTGO_TCAM
-					// Display label on OLED
-					ssd1306_clearScreen();
+				// Display label on OLED
+				ssd1306_clearScreen();
+				const CustomVisionClient::CustomVisionDetectionModel_t *bestPred = predResult->getBestPrediction();
+				if (bestPred != NULL) {
+					ssd1306_setFixedFont(ssd1306xled_font5x7);
+					ssd1306_printFixedN(5, 5, "Hello", STYLE_BOLD, FONT_SIZE_2X);
+					ssd1306_printFixedN(5, 25, bestPred->tagName, STYLE_BOLD, FONT_SIZE_2X);
+
+					char predProbChar[40];
+					sprintf(predProbChar, "Probability: %.2f%s", (bestPred->probability*100), "%");
+					ssd1306_setFixedFont(ssd1306xled_font6x8);
+					ssd1306_printFixedN(5, 54, predProbChar, STYLE_BOLD, FONT_SIZE_NORMAL);
+
+				} else {
 					ssd1306_setFixedFont(ssd1306xled_font5x7);
 					ssd1306_printFixedN(5, (ssd1306_displayHeight() - 8)/2, "Nobody there", STYLE_BOLD, FONT_SIZE_2X);
-#endif
 				}
+#endif
 
 				delete predResult;
 				predResult = NULL;
@@ -180,7 +163,6 @@ static esp_err_t stream_handler(httpd_req_t *req){
 	int64_t _nextPredictTime = esp_timer_get_time() + STREAM_PREDICTION_INTERVAL/2;
 	int64_t _showInfoUntil = 0;
 
-//	CustomVisionClient::CustomVisionDetectionResult_t *_predRes = new CustomVisionClient::CustomVisionDetectionResult_t();
 	CustomVisionClient::CustomVisionDetectionResult_t _predRes = {};
 
 	camera_fb_t *_asyncDetectFb = NULL;
@@ -208,13 +190,7 @@ static esp_err_t stream_handler(httpd_req_t *req){
 			if (esp_timer_get_time() > _nextPredictTime) {
 				if (_cvc != NULL) {
 
-					// Clear prev box if any
-//					if (_predRes != NULL) {
-//						delete _predRes;
-//						_predRes = NULL;
-//
-//						_predRes = new CustomVisionClient::CustomVisionDetectionResult_t();
-//					}
+					// Clear prev predictions
 					_predRes.clear();
 
 					// Copy camera framebuffer to be sent for detection
@@ -242,8 +218,6 @@ static esp_err_t stream_handler(httpd_req_t *req){
 			// Check queue from aysnc prediction
 			if (app_state == APP_START_RECOGNITION && _cvc->detectionQueue) {
 
-//				if (xQueueReceive(_cvc->detectionQueue, _predRes, 5) != pdFALSE) {
-//					ESP_LOGI(TAG, "Got async-ed detection result. label: %s", _predRes->bestPredictionLabel);
 				if (xQueueReceive(_cvc->detectionQueue, &_predRes, 5) != pdFALSE) {
 
 					app_state = APP_DONE_RECOGNITION;
@@ -271,9 +245,6 @@ static esp_err_t stream_handler(httpd_req_t *req){
 			}
 
 			if (app_state == APP_DONE_RECOGNITION && (esp_timer_get_time() < _showInfoUntil)) {
-//				if (_predRes != NULL && !_predRes->predictions.empty()) {
-//					// If prediction is there, draw it
-//					_cvc->putInfoOnFrame(fb, _predRes->predictions, MIN_PROB_BEST_PREDICTION, &_jpg_buf, &_jpg_buf_len);
 				if (_predRes.isBestPredictionFound() && !_predRes.predictions.empty()) {
 					// If prediction is there, draw it
 					_cvc->putInfoOnFrame(fb, _predRes.predictions, MIN_PROB_BEST_PREDICTION*0.75f, &_jpg_buf, &_jpg_buf_len);
@@ -326,12 +297,6 @@ static esp_err_t stream_handler(httpd_req_t *req){
 			break;
 		}
 	}
-
-	// Clear last box
-//	if (_predRes != NULL) {
-//		delete _predRes;
-//		_predRes = NULL;
-//	}
 
 //	if (asyncPredictFb != NULL) {
 //		free(asyncPredictFb->buf);

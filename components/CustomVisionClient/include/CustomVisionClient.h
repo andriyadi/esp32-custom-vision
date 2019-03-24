@@ -106,7 +106,7 @@ public:
 		}
 
 		const CustomVisionClient::CustomVisionDetectionModel_t *getBestPrediction() {
-			if (!isBestPredictionFound()) {
+			if (predictions.empty() || !isBestPredictionFound()) {
 				return NULL;
 			}
 			else {
