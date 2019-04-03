@@ -83,6 +83,7 @@ static esp_err_t display_msg_on_oled(const char *msg) {
 	ssd1306_clearScreen();
 	int8_t xpos = (int8_t)(ssd1306_displayWidth() - strlen(msg)*10)/2;
 	xpos = (xpos < 0)? 0: xpos;
+	ssd1306_setFixedFont(ssd1306xled_font5x7);
 	ssd1306_printFixedN(xpos, 30, msg, STYLE_BOLD, FONT_SIZE_2X);
 	return ESP_OK;
 }

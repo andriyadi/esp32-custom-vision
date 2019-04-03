@@ -409,8 +409,10 @@ void predict_async_task(void *args) {
 	}
 	else {
 		CVC_INFO("Async-ed detection is success");
-		xQueueSend(*predCfg->queue, &result, portMAX_DELAY);
 	}
+
+	//Regardless the return value, notify the queue
+	xQueueSend(*predCfg->queue, &result, portMAX_DELAY);
 
 	vTaskDelete(NULL);
 }
